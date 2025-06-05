@@ -1,0 +1,16 @@
+streamlit
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn
+imblearn
+xgboost
+catboost
+shap
+joblib
+bcrypt
+mysql-connector-python
+Pillow
+streamlit-aggrid
+streamlit-option-menu
