@@ -37,10 +37,14 @@ def calculate_gamma_value(gamma, X_train):
         return gamma  # for numeric gamma values
 
 def run_svm(df_final, binary_class=True, n_splits=10):
-    import shap
 
     with st.spinner('Harap tunggu, sedang memproses prediksi...'):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        status_text.text("🔄 Menyiapkan data dan melakukan Label Encoding...")
         time.sleep(1)
+        progress_bar.progress(5)
 
         data = df_final[['kategori_ipk', 'kategori_lama_studi', 'kerja tim', 'beasiswa', 'ketereratan']].copy()
 
@@ -56,29 +60,17 @@ def run_svm(df_final, binary_class=True, n_splits=10):
         data['beasiswa'] = le_beasiswa.fit_transform(data['beasiswa'].astype(str))
         data['ketereratan'] = le_ketereratan.fit_transform(data['ketereratan'].astype(str))
 
+        progress_bar.progress(15)
+        status_text.text("📊 Menyiapkan data training/testing dengan StratifiedKFold...")
+
         X = data[['kategori_ipk', 'kategori_lama_studi', 'kerja tim', 'beasiswa']].values
         y = data['ketereratan'].values
-        #  # Hitung korelasi fitur terhadap target ketereratan
-        # encoded_data = data.copy()
-        # correlation_matrix = encoded_data.corr(method='pearson')
-        # correlation_with_target = correlation_matrix['ketereratan'].drop('ketereratan')
-
-        # # Interpretasi arah korelasi
-        # correlation_result = []
-        # for feature, corr_value in correlation_with_target.items():
-        #     arah = 'positif' if corr_value > 0 else 'negatif'
-        #     correlation_result.append({
-        #         'fitur': feature,
-        #         'korelasi': corr_value,
-        #         'arah': arah
-        #     })
-        # correlation_df = pd.DataFrame(correlation_result).sort_values(by='korelasi', key=abs, ascending=False)
-
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
-
         crossvalidation = StratifiedKFold(n_splits, shuffle=True, random_state=42)
 
+        progress_bar.progress(20)
+        
         all_results = []
         y_tests = []
         y_preds = []
@@ -87,7 +79,10 @@ def run_svm(df_final, binary_class=True, n_splits=10):
         all_conf_matrices = []
         feature_importances = []
 
+        status_text.text("🧠 Melatih model SVM dengan GridSearchCV...")
+        total_folds = crossvalidation.get_n_splits()
         for i, (train_index, test_index) in enumerate(crossvalidation.split(X_scaled, y)):
+            status_text.text(f"🔁 Fold {i}/{total_folds} sedang diproses...")
             X_train, X_test = X_scaled[train_index], X_scaled[test_index]
             y_train, y_test = y[train_index], y[test_index]
 
@@ -101,17 +96,13 @@ def run_svm(df_final, binary_class=True, n_splits=10):
                                        param_grid, cv=3, scoring='accuracy', n_jobs=-1, return_train_score=True)
             grid_search.fit(X_train, y_train)
             model = grid_search.best_estimator_
-            print(f"Fold {i+1} - Best gamma: {grid_search.best_params_['gamma']}")
 
             for j in range(len(grid_search.cv_results_['params'])):
                 result = grid_search.cv_results_['params'][j].copy()
                 result['mean_test_accuracy'] = grid_search.cv_results_['mean_test_score'][j]
                 result['fold'] = i + 1
-
-                # Hitung nilai gamma aktual
                 gamma_val = calculate_gamma_value(result['gamma'], X_train)
                 result['gamma'] = f"{result['gamma']} ({gamma_val:.4f})"
-
                 all_results.append(result)
 
             y_pred = model.predict(X_test)
@@ -124,7 +115,6 @@ def run_svm(df_final, binary_class=True, n_splits=10):
             all_fold_errors.append(1 - acc)
             all_conf_matrices.append(confusion_matrix(y_test, y_pred))
 
-            # Feature importance
             if model.kernel == 'linear':
                 imp = np.abs(model.coef_).mean(axis=0)
             else:
@@ -132,21 +122,20 @@ def run_svm(df_final, binary_class=True, n_splits=10):
                 imp = result.importances_mean
             feature_importances.append(imp)
 
-        # Agregasi hasil
+            progress = 20 + int((50 * i) / total_folds)
+            progress_bar.progress(progress)
+
+        # Evaluasi agregat
         avg_error = np.mean(all_fold_errors)
         avg_accuracy = 1 - avg_error
-
+    
         y_tests = np.array(y_tests)
         y_preds = np.array(y_preds)
         y_probas = np.array(y_probas)
 
-        # Buat DataFrame hasil prediksi
-        hasil_prediksi_df = pd.DataFrame({
-            'Actual': y_tests,
-            'Predicted': y_preds
-        })
+        status_text.text("🧾 Menyimpan hasil prediksi dan menghitung metrik evaluasi...")
 
-        # Simpan ke Excel
+        hasil_prediksi_df = pd.DataFrame({'Actual': y_tests, 'Predicted': y_preds})
         hasil_prediksi_df.to_excel('data_pred/data_prediksi_SVM.xlsx', index=False)
 
         precision = precision_score(y_tests, y_preds, average='binary' if binary_class else 'weighted')
@@ -166,14 +155,15 @@ def run_svm(df_final, binary_class=True, n_splits=10):
             npv = None
             roc_auc = roc_auc_score(y_tests, y_probas, multi_class='ovr')
 
-        # Feature Importance rata-rata
+        
+        progress_bar.progress(80)
+        status_text.text("📉 Membuat visualisasi evaluasi model...")
         mean_importance = np.mean(feature_importances, axis=0)
         feature_importance_df = pd.DataFrame({
             'Fitur': ['kategori_ipk', 'kategori_lama_studi', 'kerja tim', 'beasiswa'],
             'Importance': mean_importance
         }).sort_values(by='Importance', ascending=False)
 
-        # Visualisasi Feature Importance
         plt.figure(figsize=(10, 6))
         plt.barh(feature_importance_df['Fitur'], feature_importance_df['Importance'], color='skyblue')
         plt.xlabel('Importance')
@@ -184,7 +174,7 @@ def run_svm(df_final, binary_class=True, n_splits=10):
         plt.savefig('feature_importance.png')
         plt.close()
 
-        # ROC Curve
+        progress_bar.progress(85)
         plt.figure(figsize=(8, 6))
         if binary_class:
             fpr, tpr, _ = roc_curve(y_tests, y_probas[:, 1])
@@ -204,6 +194,7 @@ def run_svm(df_final, binary_class=True, n_splits=10):
         plt.savefig("roc_curve.png")
         plt.close()
 
+        progress_bar.progress(90)
         results_df = pd.DataFrame(all_results)
         kernel_best_detail_df = results_df.loc[results_df.groupby('kernel')['mean_test_accuracy'].idxmax()]
         kernel_best_detail_df = kernel_best_detail_df[['kernel', 'C', 'gamma', 'mean_test_accuracy']]
@@ -212,7 +203,9 @@ def run_svm(df_final, binary_class=True, n_splits=10):
         y_pred_labels = le_ketereratan.inverse_transform(y_preds)
         y_test_labels = le_ketereratan.inverse_transform(y_tests)
 
-        # Simpan model dan encoder dari fold terakhir
+        progress_bar.progress(95)
+        status_text.text("💾 Menyimpan model dan encoder...")
+        
         safe_save_model(model, 'models/Model_SVM.pkl')
         safe_save_model(le_ipk, 'models/le_ipk.pkl')
         safe_save_model(le_studi, 'models/le_lamastudi.pkl')
@@ -222,6 +215,12 @@ def run_svm(df_final, binary_class=True, n_splits=10):
         safe_save_model(scaler, 'models/scaler.pkl')
 
         print("Model SVM telah disimpan.")
+
+        progress_bar.progress(100)
+        status_text.text("✅ Proses selesai!")
+        time.sleep(2)
+        progress_bar.empty()
+        status_text.empty()
 
         return {
             'accuracy': avg_accuracy,
@@ -237,7 +236,6 @@ def run_svm(df_final, binary_class=True, n_splits=10):
             'feature_importance_image': 'feature_importance.png',
             'roc_auc': roc_auc,
             'roc_image': 'roc_curve.png',
-            # 'feature_target_correlation': correlation_df,
             'y_test_labels': y_test_labels,
             'y_pred_labels': y_pred_labels,
             'label_encoder': le_ketereratan,
@@ -249,3 +247,4 @@ def run_svm(df_final, binary_class=True, n_splits=10):
             'grid_search_results': results_df,
             'best_accuracy_per_kernel': kernel_best_detail_df
         }
+
