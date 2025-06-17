@@ -7,10 +7,10 @@ import CSS
 
 def connect_to_db():
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="data_mining_system"
+            host="sql12.freesqldatabase.com",
+            user="sql12785344", 
+            password="3WJcZfxRAQ", 
+            database="sql12785344"
     )
 
 def add_user(nama, username, password, hak_akses):
