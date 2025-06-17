@@ -44,10 +44,10 @@ def main() :
 
     def connect_to_db():
         return mysql.connector.connect(
-            host="localhost",
-            user="root", 
-            password="", 
-            database="data_mining_system" 
+            host="sql12.freesqldatabase.com",
+            user="sql12785344", 
+            password="3WJcZfxRAQ", 
+            database="sql12785344" 
         )
 
     def simpan_riwayat_ke_db(data):
