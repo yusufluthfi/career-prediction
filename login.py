@@ -120,15 +120,15 @@ def register_page():
         st.session_state.page = "login"
         st.rerun()
 
-# def logout():
-#     for key in list(st.session_state.keys()):
-#         del st.session_state[key]
-#     st.rerun()
+def logout():
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.rerun()
 
-# def main_page():
-#     st.title("Selamat datang di Aplikasi")
-#     st.write(f"Hai, {st.session_state.user['nama_pengguna']}!")
-#     st.button("Logout", on_click=lambda: logout())
+def main_page():
+    st.title("Selamat datang di Aplikasi")
+    st.write(f"Hai, {st.session_state.user['nama_pengguna']}!")
+    st.button("Logout", on_click=lambda: logout())
 
 
 # Routing
